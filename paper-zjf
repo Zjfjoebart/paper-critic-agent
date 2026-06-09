@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# ---------------------------------------------------------------
+# paper-zjf —— 在任意目录一键启动 Paper Critic Agent
+# 用法：  paper-zjf                直接进入交互（方向键选论文）
+#         paper-zjf a.pdf b.pdf    指定论文
+#         paper-zjf --library      论文库模式
+#         paper-zjf --find "xxx"   联网搜索相关论文
+# 若项目挪了位置，改下面这行 PROJECT_DIR 即可。
+# ---------------------------------------------------------------
+PROJECT_DIR="/Users/zhangjunfeng/Desktop/项目/文献阅读器"
+
+cd "$PROJECT_DIR" || { echo "找不到项目目录：$PROJECT_DIR"; exit 1; }
+
+# 优先用项目自带虚拟环境
+if [ -f ".venv/bin/activate" ]; then
+  # shellcheck disable=SC1091
+  source ".venv/bin/activate"
+fi
+
+exec python app.py "$@"

@@ -1,0 +1,31 @@
+# ===== 敏感信息（绝不上传）=====
+.env
+
+# ===== Python 环境 / 缓存 =====
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# ===== 运行时数据（按需重建，不入库）=====
+data/cache/*
+!data/cache/.gitkeep
+data/index/*
+!data/index/.gitkeep
+
+# ===== 论文 PDF（可能有版权，不入库）=====
+papers/*
+!papers/.gitkeep
+
+# ===== 生成的输出（矩阵 / 图表 HTML）=====
+outputs/*
+!outputs/.gitkeep
+
+# ===== 操作系统 / 编辑器 =====
+.DS_Store
+.~*
+*.swp
+.idea/
+.vscode/
