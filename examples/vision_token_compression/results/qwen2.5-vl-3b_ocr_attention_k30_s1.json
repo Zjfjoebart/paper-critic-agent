@@ -1,0 +1,7 @@
+{
+  "run_id": "qwen2.5-vl-3b_ocr_attention_k30_s1",
+  "metrics": {
+    "accuracy": 0.79,
+    "drop": 0.06
+  }
+}

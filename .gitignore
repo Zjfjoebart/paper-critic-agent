@@ -1,31 +1,36 @@
-# ===== 敏感信息（绝不上传）=====
+# 敏感信息
 .env
 
-# ===== Python 环境 / 缓存 =====
+# Python 环境 / 缓存
 .venv/
 venv/
 __pycache__/
 *.py[cod]
 *.egg-info/
-.pytest_cache/
 
-# ===== 运行时数据（按需重建，不入库）=====
-data/cache/*
-!data/cache/.gitkeep
-data/index/*
-!data/index/.gitkeep
-
-# ===== 论文 PDF（可能有版权，不入库）=====
-papers/*
-!papers/.gitkeep
-
-# ===== 生成的输出（矩阵 / 图表 HTML）=====
+# 生成的派生文件
 outputs/*
 !outputs/.gitkeep
 
-# ===== 操作系统 / 编辑器 =====
+# 用户真实实验数据（workspace 下的具体实验不入库，仅保留目录结构）
+workspace/configs/*
+workspace/logs/*
+workspace/results/*
+workspace/scripts/*
+workspace/reports/*
+!workspace/**/.gitkeep
+
+# 归档的旧项目里的大文件 / 数据
+legacy_paper_reader/papers/*
+!legacy_paper_reader/papers/.gitkeep
+legacy_paper_reader/data/
+legacy_paper_reader/outputs/
+
+# 系统 / 编辑器
 .DS_Store
 .~*
 *.swp
 .idea/
 .vscode/
+
+# 注：examples/ 下的示例实验数据【会】入库，方便他人直接试跑。

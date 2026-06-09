@@ -1,0 +1,6 @@
+run_id: qwen2.5-vl-3b_chart_attention_k10_s1
+model: qwen2.5-vl-3b
+task: chart
+method: attention
+keep_ratio: 0.1
+seed: 1

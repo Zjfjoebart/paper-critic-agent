@@ -1,183 +1,137 @@
-# Paper Critic Agent
+# ResearchOps Agent
 
-审稿式论文阅读助手。不是 PDF 总结器，而是帮你做研究判断的工具。
+面向科研实验流程的自动化管理助手。不是聊天 Agent，而是把做实验时最烦的重复流程标准化：
 
-当前版本 **v0.8**：支持单论文 / 多论文对比 / 本地论文库，能生成 Literature Matrix、
-推荐研究切入点，并可从 arXiv 直接检索下载论文。
+```
+检查数据 → 生成配置 → 跑实验 → 监控日志 → 汇总结果 → 发现异常 → 生成下一步实验建议
+```
 
-默认进入 **Claude Code 风格的终端界面**：斜杠命令自动补全（Tab）、带边框输入框、命令历史（↑↓）、Markdown 渲染回答、思考动画与流式输出、**多轮对话记忆**（支持追问）、**`/model` 随时切换推理模型**。加 `--plain` 可切回简易界面。
+它维护一份**实验账本**，自动检查缺失/失败实验、解析日志、汇总结果、检测异常，并生成下一批命令与阶段报告。**确定性计算（数文件、算指标、判完成）全部由 Python 完成，LLM 只做解释、判断证据、建议下一步**——避免大模型承担高风险的统计任务。
 
 ---
+
+## 三层架构
+
+```
+第 1 层 ResearchOps Core   纯 Python，不接 LLM：扫描 / 解析 / 汇总 / 异常检测 / 报告 / 命令
+第 2 层 ResearchOps Agent  接入 LLM：解释异常、判断证据、建议下一步、写报告
+第 3 层 ResearchOps CLI     Claude Code 风格对话界面
+```
 
 ## 快速开始
 
-### 1. 安装依赖
-
 ```bash
-python -m venv .venv
-source .venv/bin/activate      # Windows: .venv\Scripts\activate
+python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
+cp .env.example .env        # 填 DeepSeek API Key（仅第 2/3 层需要）
 ```
 
-> 扫描版 PDF 的 OCR 为可选功能，需在系统层安装 Tesseract：
-> `brew install tesseract tesseract-lang`（macOS）或
-> `sudo apt install tesseract-ocr tesseract-ocr-chi-sim`（Ubuntu）。
-> 不装也能正常运行，只是会跳过扫描页。
-
-### 2. 配置 API Key
+### 第 1 层：实验状态（不接 LLM，立即可用）
 
 ```bash
-cp .env.example .env
-# 编辑 .env，填入 DeepSeek API Key
+python research_ops.py status --workspace examples/vision_token_compression
 ```
 
-DeepSeek API Key 申请：https://platform.deepseek.com
+输出到 `outputs/`：
 
-**论文放哪？** 默认读项目下的 `papers/`。若想用自己的文件夹（不用每次搬论文），在 `.env` 里加一行 `PAPERS_DIR=~/你的论文文件夹`，之后 `paper-zjf` 每次自动扫这里，`/papers` 和 arXiv 下载也都用这个目录。
-
-### 3. 运行
-
-```bash
-# 单论文
-python app.py papers/your_paper.pdf
-
-# 多论文对比
-python app.py papers/A.pdf papers/B.pdf papers/C.pdf
-
-# 论文库模式（索引 papers/ 整个目录，持久化 + 增量更新）
-python app.py --library
-
-# 无参启动：方向键多选 papers/ 里的论文（空格选、回车确认）
-python app.py
-
-# 联网搜索相关顶会论文（带会议/年份/引用数 + 自动出研究图景图）
-python app.py --find "token pruning vision language model"
+```
+experiment_status.md   阶段报告（含证据边界：已验证 / 尚未验证）
+missing_runs.csv       缺失实验
+failed_runs.csv        失败实验（含错误类型）
+next_commands.sh       下一批命令
+experiments.csv        实验账本
+generated_configs/     为缺失实验生成的 config
 ```
 
----
-
-## 三种使用模式
-
-| 模式 | 命令 | 适用场景 |
-|------|------|----------|
-| 单论文 | `python app.py a.pdf` | 精读一篇 |
-| 多论文 | `python app.py a.pdf b.pdf` | 当场对比几篇 |
-| 论文库 | `python app.py --library` | 管理整个文献库，持久化、可增量 |
-
-### 预设模板（启动后输入编号）
-
-| 编号 | 模板 | 模式 |
-|------|------|------|
-| 1 | 快速审稿（全文结构分析）| 全部 |
-| 2 | 方法拆解 | 全部 |
-| 3 | 审稿人挑战 | 全部 |
-| 4 | 对我研究的价值分析 | 全部 |
-| 5 | Related Work 梳理 | 全部 |
-| 6 | 多论文横向对比 | 多论文 / 论文库 |
-| 7 | **研究切入点推荐** | 多论文 / 论文库 |
-
-也可以直接提问，例如：
-- `这篇论文的核心贡献是什么？`
-- `实验有没有支撑作者的 claim？`
-- `和 SparseVLM 相比有什么区别？`
-- `如果我要在这个方向继续做，有哪些可攻击点？`
-
-交互中可用命令：`find <关键词>`（联网搜索 + 研究图景图）、`viz`（重出图景图）、`matrix`（对比表 + 指标对比图）、`/papers`（方向键追加论文）、`/model`（切换 deepseek-chat / deepseek-reasoner）、`/clear`（清空对话记忆）、`cache`、`help`、`exit`。
-
----
-
-## 论文库工作流
+### 第 2/3 层：对话式（接入 LLM）
 
 ```bash
-# 1. 从 arXiv 检索并下载相关论文到 papers/
-python app.py --arxiv "token pruning vision language model" --download all
-
-# 2. 索引论文库（首次会 embedding，之后增量；换新论文只索引新增的）
-python app.py --library
-
-# 3. 在交互中：用模板 6 横向对比、模板 7 找研究切入点、matrix 生成对比表
+python research_ops.py chat --workspace examples/vision_token_compression
 ```
 
-也可单独使用 arXiv 工具：
+交互命令：`/status`（重扫状态）、`/report`（报告路径）、`/run`（执行命令，需人工确认）、`/model`（换模型）、`/clear`、`/exit`。直接提问则由 LLM 基于工具结果解释/建议。
+
+### 一键启动（任意目录）
 
 ```bash
-python -m src.arxiv_search "kv cache compression" --max 5
-python -m src.arxiv_search "long context attention" --download 1,3,4
-```
-
----
-
-## 一键启动（paper-zjf）
-
-不想每次都 cd / 激活环境 / python app.py？装一次全局命令：
-
-```bash
-# 1. 给脚本可执行权限
-chmod +x "/Users/zhangjunfeng/Desktop/项目/文献阅读器/paper-zjf"
-
-# 2. 加一个别名到 zsh 配置（只需一次）
-echo 'alias paper-zjf="/Users/zhangjunfeng/Desktop/项目/文献阅读器/paper-zjf"' >> ~/.zshrc
+chmod +x "/Users/zhangjunfeng/Desktop/项目/文献阅读器/research-ops"
+echo 'alias research-ops="/Users/zhangjunfeng/Desktop/项目/文献阅读器/research-ops"' >> ~/.zshrc
 source ~/.zshrc
+# 之后：
+research-ops status -w examples/vision_token_compression
+research-ops chat   -w workspace
 ```
 
-之后在任意目录直接输入即可：
+---
 
-```bash
-paper-zjf                 # 方向键选论文，进入交互
-paper-zjf --library       # 论文库模式
-paper-zjf --find "xxx"    # 联网搜索
+## 你的实验怎么接入
+
+把你的项目按这个结构放进 `workspace/`（或任意目录，用 `-w` 指定）：
+
+```
+your_project/
+├── grid.yaml        # 实验矩阵定义（各维度的取值 + 命令模板）
+├── configs/         # 每个实验一个 config（yaml/json）
+├── logs/            # 每个实验一个日志
+└── results/         # 每个实验一个 result.json（含 metrics.accuracy 等）
 ```
 
-> 项目若移动了位置，编辑 `paper-zjf` 顶部的 `PROJECT_DIR` 即可。
+文件命名规则：`{model}_{task}_{method}_k{keep*100:02d}_s{seed}`，
+例如 `qwen2.5-vl-3b_ocr_attention_k30_s1`。`grid.yaml` 见 `examples/vision_token_compression/grid.yaml`。
+
+---
+
+## 安全控制（三级权限）
+
+```
+Level 0 只读        list / read configs / logs / results
+Level 1 写派生文件   missing / failed / commands / report      ← 默认上限
+Level 2 执行命令     训练 / 评测 / 批量任务                     ← 必须人工输入 yes 确认
+```
+
+LLM Agent 默认只能 Level 0/1，绝不删除数据、覆盖结果、自动 push 或无确认大规模启动实验。
 
 ---
 
 ## 项目结构
 
 ```
-文献阅读器/
-├── app.py                   # CLI 入口（单/多/库/arXiv/缓存）
-├── requirements.txt
-├── .env.example
-├── papers/                  # 放 PDF 文件
-├── data/
-│   ├── cache/               # 单 PDF embedding 缓存
-│   └── index/               # 论文库持久化 FAISS 索引 + 元数据
-└── src/
-    ├── config.py            # embedding 模型配置
-    ├── parse_pdf.py         # PDF 解析 + 扫描版 OCR 兜底
-    ├── chunker.py           # 文本滑动窗口切分
-    ├── cache.py             # embedding 缓存（key 含模型名）
-    ├── retriever.py         # 单论文检索
-    ├── multi_retriever.py   # 多论文检索
-    ├── library.py           # 本地论文库索引（持久化 + 增量）
-    ├── agent.py             # Agent 主逻辑（OpenAI Agents SDK + DeepSeek）
-    ├── arxiv_search.py      # arXiv 检索与下载
-    ├── paper_finder.py      # 联网搜相关论文（Semantic Scholar）
-    ├── selector.py          # 方向键多选论文
-    ├── visualize.py         # 交互式 HTML 图表
-    ├── cli.py               # Claude Code 风格终端界面（rich + prompt_toolkit）
-    ├── commands.py          # find/viz/matrix 共享命令逻辑
-    ├── matrix_builder.py    # Literature Matrix 生成
-    └── prompts.py           # 系统提示词 + 7 个模板
+.
+├── research_ops.py          # CLI 入口：status / chat
+├── research-ops             # 全局启动脚本
+├── agent/
+│   ├── pipeline.py          # 第1层主流程（run_status）
+│   ├── state.py             # 实验账本 Experiment Ledger
+│   ├── safety.py            # 三级权限 + 人工确认
+│   ├── prompts.py           # Agent 系统提示词
+│   ├── main_agent.py        # 第2层 LLM Agent（DeepSeek）
+│   ├── cli.py               # 第3层对话界面（rich + prompt_toolkit）
+│   └── tools/               # 第1层确定性工具（纯 Python）
+│       ├── file_tools.py    # 扫描项目
+│       ├── config_tools.py  # 读配置 / 生成实验矩阵
+│       ├── log_tools.py     # 日志解析（OOM / FileNotFound / NaN …）
+│       ├── result_tools.py  # 汇总 / 缺失 / 异常检测
+│       ├── command_tools.py # 生成 / 执行命令
+│       └── report_tools.py  # 写 md / csv / sh
+├── examples/vision_token_compression/   # 示例实验数据（可直接试跑）
+├── workspace/               # 放你自己的实验
+├── outputs/                 # 生成的派生文件
+└── legacy_paper_reader/     # 归档：之前的论文阅读器（仍在 git 历史里）
 ```
 
 ---
 
-## 技术栈
+## 技术选型
 
-- **PDF 解析**：PyMuPDF（扫描版 OCR 兜底需 Tesseract）
-- **Embedding**：`paraphrase-multilingual-MiniLM-L12-v2`（默认，中英文通用，本地运行）
-  - 环境变量 `EMBEDDING_MODEL` 可切换模型
-- **向量索引**：FAISS（IndexFlatIP，cosine 相似度，论文库索引持久化）
-- **检索策略**：语义检索 + 关键词匹配混合
-- **Agent 框架**：OpenAI Agents SDK
-- **推理模型**：DeepSeek（`deepseek-chat`）
-- **arXiv 检索**：Python 标准库，无额外依赖
+- Agent 框架：OpenAI Agents SDK（自带 tracing）
+- 推理模型：DeepSeek（`deepseek-chat` / `deepseek-reasoner`，`/model` 可切）
+- 实验追踪：先 CSV 账本，后续可接 MLflow / W&B
+- 配置：YAML；日志解析：regex；命令执行：subprocess；报告：Markdown
+- 界面：CLI（rich + prompt_toolkit）
 
----
+## 后续方向
 
-## 后续升级方向
-
-- [ ] Streamlit 网页界面（上传 / 选模板 / 带引用回答）
-- [ ] 引用可点击 / 证据回溯
+- [ ] 实验账本换 SQLite / 接 MLflow
+- [ ] Config Planner 直接写入 workspace（带确认）
+- [ ] 多 seed 的统计显著性 / 置信区间
+- [ ] Streamlit 看板

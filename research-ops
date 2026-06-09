@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# 在任意目录启动 ResearchOps Agent
+#   research-ops status -w examples/vision_token_compression
+#   research-ops chat   -w workspace
+# 项目若移动，改下面 PROJECT_DIR。
+PROJECT_DIR="/Users/zhangjunfeng/Desktop/项目/文献阅读器"
+cd "$PROJECT_DIR" || { echo "找不到项目目录：$PROJECT_DIR"; exit 1; }
+[ -f ".venv/bin/activate" ] && source ".venv/bin/activate"
+exec python research_ops.py "$@"

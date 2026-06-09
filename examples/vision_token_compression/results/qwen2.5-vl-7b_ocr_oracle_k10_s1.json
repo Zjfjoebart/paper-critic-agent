@@ -1,0 +1,7 @@
+{
+  "run_id": "qwen2.5-vl-7b_ocr_oracle_k10_s1",
+  "metrics": {
+    "accuracy": 0.88,
+    "drop": 0
+  }
+}

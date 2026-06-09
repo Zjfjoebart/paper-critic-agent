@@ -1,0 +1,2 @@
+[INFO] loading model
+RuntimeError: CUDA out of memory. Tried to allocate 2.00 GiB

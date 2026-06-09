@@ -1,0 +1,6 @@
+run_id: qwen2.5-vl-3b_ocr_random_k30_s1
+model: qwen2.5-vl-3b
+task: ocr
+method: random
+keep_ratio: 0.3
+seed: 1

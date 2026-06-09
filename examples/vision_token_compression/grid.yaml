@@ -1,0 +1,19 @@
+# 实验矩阵定义（expected runs = 笛卡尔积）
+model:
+  - qwen2.5-vl-3b
+  - qwen2.5-vl-7b
+task:
+  - ocr
+  - chart
+method:
+  - random
+  - attention
+  - oracle
+keep_ratio:
+  - 0.1
+  - 0.3
+seed:
+  - 1
+
+# 运行命令模板（生成 next_commands.sh 用，{config} 会被替换为 config 路径）
+command_template: "python eval.py --config {config}"

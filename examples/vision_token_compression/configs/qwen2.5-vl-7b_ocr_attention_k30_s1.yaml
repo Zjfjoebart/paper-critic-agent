@@ -1,0 +1,6 @@
+run_id: qwen2.5-vl-7b_ocr_attention_k30_s1
+model: qwen2.5-vl-7b
+task: ocr
+method: attention
+keep_ratio: 0.3
+seed: 1

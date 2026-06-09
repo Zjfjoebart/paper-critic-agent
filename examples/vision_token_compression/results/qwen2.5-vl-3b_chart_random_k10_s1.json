@@ -1,0 +1,7 @@
+{
+  "run_id": "qwen2.5-vl-3b_chart_random_k10_s1",
+  "metrics": {
+    "accuracy": 0.67,
+    "drop": 0.18
+  }
+}
