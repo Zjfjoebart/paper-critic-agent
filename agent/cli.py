@@ -96,14 +96,17 @@ def _read_commands(out_dir):
 
 async def run_chat(workspace: str, grid_path: str | None = None, out_dir: str = "outputs"):
     model = os.environ.get("DEEPSEEK_MODEL", "deepseek-chat")
-    if not os.environ.get("DEEPSEEK_API_KEY"):
-        console.print("[red]未找到 DEEPSEEK_API_KEY，请在 .env 中配置。[/]")
-        return
-
-    agent = build_status_agent(workspace, grid_path, out_dir, model=model)
     res = run_status(workspace, grid_path=grid_path, out_dir=out_dir)
     console.print(Panel(BANNER, border_style="#2E6DA4", expand=False))
     _print_status(res)
+
+    # 没有 API key：只读窗口，仅展示当前实验内容，不进入对话
+    if not os.environ.get("DEEPSEEK_API_KEY"):
+        console.print("[yellow]未配置 DEEPSEEK_API_KEY —— 当前为只读模式，已显示实验状态。[/]\n"
+                      "[dim]在 .env 填入 key 后，重新运行即可对话（解释失败、建议下一步等）。[/]")
+        return
+
+    agent = build_status_agent(workspace, grid_path, out_dir, model=model)
 
     session = PromptSession(
         history=InMemoryHistory(),

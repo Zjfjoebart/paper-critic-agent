@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# lab —— 一键打开 ResearchOps 窗口，显示当前实验状态并可对话
+#   lab                              # 默认工作目录（RESEARCHOPS_WORKSPACE，或 workspace/）
+#   lab examples/vision_token_compression   # 指定某个实验目录
+#   lab -w workspace                 # 也可显式用 -w
+# 项目若移动，改下面 PROJECT_DIR。
+PROJECT_DIR="/Users/zhangjunfeng/Desktop/项目/文献阅读器"
+cd "$PROJECT_DIR" || { echo "找不到项目目录：$PROJECT_DIR"; exit 1; }
+[ -f ".venv/bin/activate" ] && source ".venv/bin/activate"
+
+if [ $# -gt 0 ] && [[ "$1" != -* ]]; then
+  exec python research_ops.py chat -w "$@"     # 第一个参数当作工作目录
+else
+  exec python research_ops.py chat "$@"
+fi
