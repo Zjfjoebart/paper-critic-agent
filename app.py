@@ -44,7 +44,7 @@ from src.agent import build_agent, build_multi_agent, ask_agent
 from src.cache import list_cache, clear_cache
 from src.prompts import TEMPLATES, TEMPLATE_MENU
 from src.commands import do_find, do_viz, do_matrix, VIZ_DIR
-from src.config import get_chat_model, AVAILABLE_MODELS
+from src.config import get_chat_model, AVAILABLE_MODELS, get_papers_dir
 
 
 # ====================================================================== #
@@ -148,7 +148,7 @@ HELP_TEXT = """
   find <关键词>  联网搜索相关论文（带会议/年份/引用数）+ 生成研究图景图
   viz            重新生成上次搜索结果的研究图景图
   matrix         生成 Literature Matrix（多论文/论文库模式）+ 指标对比图
-  /papers        方向键多选，往会话里追加 papers/ 目录的论文
+  /papers        方向键多选，往会话里追加论文库目录的论文（路径见 PAPERS_DIR）
   cache          查看当前缓存状态
   help / h       显示此帮助
   exit / q       退出
@@ -318,7 +318,7 @@ async def main():
         from src.library import build_or_load_library
         rebuild = "--rebuild" in args
         positional = [a for a in args if not a.startswith("--")]
-        papers_dir = positional[0] if positional else "papers"
+        papers_dir = positional[0] if positional else get_papers_dir()
         lib = build_or_load_library(papers_dir, rebuild=rebuild)
         if not lib.papers:
             print(f"[提示] {papers_dir} 目录下没有可索引的 PDF。请放入论文后重试。")
@@ -336,11 +336,12 @@ async def main():
 
     # 无参 → 方向键多选 papers/ 里的论文
     if not pdf_paths:
+        papers_dir = get_papers_dir()
         from src.selector import pick_papers_async
-        pdf_paths = await pick_papers_async("papers")
+        pdf_paths = await pick_papers_async(papers_dir)
         if not pdf_paths:
-            print("[提示] 未选择任何论文。可先把 PDF 放进 papers/，"
-                  '或用 python app.py --find "关键词" 联网搜索。')
+            print(f"[提示] 未选择任何论文。可把 PDF 放进 {papers_dir}/，"
+                  '或用 --find "关键词" 联网搜索。')
             return
 
     if len(pdf_paths) == 1:
@@ -357,7 +358,7 @@ async def main():
         builder = lambda m=None: build_multi_agent(retriever, m)
         agent = builder(model)
         await launch(agent, mode_label=f"多论文×{len(pdf_paths)}",
-                     retriever=retriever, papers_dir="papers",
+                     retriever=retriever, papers_dir=get_papers_dir(),
                      agent_builder=builder, model=model)
 
 

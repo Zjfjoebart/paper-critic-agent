@@ -134,6 +134,7 @@
   - 简易版：输入 `model` 回车后填名称。底部状态栏实时显示当前模型。
   - 默认模型可用环境变量 `DEEPSEEK_MODEL` 配置（见 `src/config.py`）。
 - **实现方式**：main() 用 `agent_builder` 闭包贯通，`/model` 与 `/papers` 都通过它热重建 agent。
+- **可配置论文库目录**：环境变量 `PAPERS_DIR`（见 `src/config.get_papers_dir`），设成自己的文件夹后 paper-zjf 每次自动扫描，无需把论文搬进项目；arXiv 下载也落到该目录。
 
 ---
 

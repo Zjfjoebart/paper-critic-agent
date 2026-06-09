@@ -46,3 +46,18 @@ AVAILABLE_MODELS = [
 def get_chat_model() -> str:
     """当前推理模型（环境变量 DEEPSEEK_MODEL 优先）。"""
     return os.environ.get("DEEPSEEK_MODEL", DEFAULT_CHAT_MODEL).strip()
+
+
+# ====================================================================== #
+#  论文库目录
+# ====================================================================== #
+
+def get_papers_dir() -> str:
+    """
+    论文所在目录（环境变量 PAPERS_DIR 优先，支持 ~ 展开）。
+    未设置时默认项目下的 papers/。
+    设成你自己的文件夹（如 ~/Papers），paper-zjf 每次都会扫这里。
+    """
+    from pathlib import Path
+    d = os.environ.get("PAPERS_DIR", "").strip() or "papers"
+    return str(Path(d).expanduser())

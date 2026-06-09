@@ -76,8 +76,11 @@ def _safe_filename(title: str, arxiv_id: str) -> str:
     return f"{base}_{short_id}.pdf"
 
 
-def download_paper(entry: dict, dest_dir: str = "papers") -> str:
-    """下载单篇论文 PDF 到 dest_dir，返回保存路径。"""
+def download_paper(entry: dict, dest_dir: str | None = None) -> str:
+    """下载单篇论文 PDF 到 dest_dir（默认论文库目录），返回保存路径。"""
+    if dest_dir is None:
+        from src.config import get_papers_dir
+        dest_dir = get_papers_dir()
     d = Path(dest_dir)
     d.mkdir(parents=True, exist_ok=True)
     out = d / _safe_filename(entry["title"], entry["arxiv_id"])

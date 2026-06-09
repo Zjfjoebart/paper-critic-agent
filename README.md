@@ -33,6 +33,8 @@ cp .env.example .env
 
 DeepSeek API Key 申请：https://platform.deepseek.com
 
+**论文放哪？** 默认读项目下的 `papers/`。若想用自己的文件夹（不用每次搬论文），在 `.env` 里加一行 `PAPERS_DIR=~/你的论文文件夹`，之后 `paper-zjf` 每次自动扫这里，`/papers` 和 arXiv 下载也都用这个目录。
+
 ### 3. 运行
 
 ```bash
