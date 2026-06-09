@@ -44,6 +44,7 @@ from src.agent import build_agent, build_multi_agent, ask_agent
 from src.cache import list_cache, clear_cache
 from src.prompts import TEMPLATES, TEMPLATE_MENU
 from src.commands import do_find, do_viz, do_matrix, VIZ_DIR
+from src.config import get_chat_model, AVAILABLE_MODELS
 
 
 # ====================================================================== #
@@ -158,13 +159,16 @@ HELP_TEXT = """
 #  主循环
 # ====================================================================== #
 
-async def chat_loop(agent, mode_label: str, retriever=None, papers_dir: str = "papers"):
+async def chat_loop(agent, mode_label: str, retriever=None, papers_dir: str = "papers",
+                    agent_builder=None, model: str | None = None):
     print("\n" + "=" * 55)
     print(f"Paper Critic Agent [{mode_label}]")
     print("=" * 55)
     print(TEMPLATE_MENU)
 
     state: dict = {"last_results": None, "last_query": ""}
+    history: list = []
+    model = model or get_chat_model()
     supports_multi = isinstance(retriever, MultiPaperRetriever)
 
     while True:
@@ -195,6 +199,26 @@ async def chat_loop(agent, mode_label: str, retriever=None, papers_dir: str = "p
             else:
                 for e in entries:
                     print(f"  {e['name']}  ({e['size_kb']:.0f} KB)")
+            continue
+
+        if low in ["clear", "/clear"]:
+            history = []
+            print("对话记忆已清空。")
+            continue
+
+        # 切换模型（仅精确输入 model / /model 触发，避免和正常提问冲突）
+        if low in ["model", "/model"]:
+            if agent_builder is None:
+                print("[提示] 当前模式不支持切换模型。")
+                continue
+            print(f"当前模型：{model}。可选：{', '.join(AVAILABLE_MODELS)}")
+            name = input("输入要切换的模型名（回车保持不变）：").strip()
+            if not name or name == model:
+                print("模型未变。")
+                continue
+            model = name
+            agent = agent_builder(model)
+            print(f"已切换模型：{model}（对话记忆保留）")
             continue
 
         # 联网搜索相关论文
@@ -250,7 +274,7 @@ async def chat_loop(agent, mode_label: str, retriever=None, papers_dir: str = "p
 
         print("\n正在分析，请稍候...\n")
         try:
-            answer = await ask_agent(agent, question)
+            answer, history = await ask_agent(agent, question, history)
             print("=" * 55)
             print(answer)
             print("=" * 55)
@@ -262,16 +286,19 @@ async def chat_loop(agent, mode_label: str, retriever=None, papers_dir: str = "p
 #  界面选择：默认 Claude Code 风格富 CLI，--plain 或环境不支持时回退简易版
 # ====================================================================== #
 
-async def launch(agent, mode_label: str, retriever=None, papers_dir: str = "papers"):
+async def launch(agent, mode_label: str, retriever=None, papers_dir: str = "papers",
+                 agent_builder=None, model: str | None = None):
     if "--plain" not in sys.argv and sys.stdin.isatty():
         try:
             from src.cli import run_cli
-            await run_cli(agent, mode_label, retriever=retriever, papers_dir=papers_dir)
+            await run_cli(agent, mode_label, retriever=retriever, papers_dir=papers_dir,
+                          agent_builder=agent_builder, model=model)
             return
         except ImportError:
             print("[提示] 未安装 rich / prompt_toolkit，使用简易界面。"
                   "（pip install rich prompt_toolkit 可启用 Claude Code 风格界面）")
-    await chat_loop(agent, mode_label, retriever=retriever, papers_dir=papers_dir)
+    await chat_loop(agent, mode_label, retriever=retriever, papers_dir=papers_dir,
+                    agent_builder=agent_builder, model=model)
 
 
 # ====================================================================== #
@@ -297,9 +324,12 @@ async def main():
             print(f"[提示] {papers_dir} 目录下没有可索引的 PDF。请放入论文后重试。")
             return
         print(f"\n{lib.paper_list_str()}")
-        agent = build_multi_agent(lib)
+        model = get_chat_model()
+        builder = lambda m=None: build_multi_agent(lib, m)
+        agent = builder(model)
         await launch(agent, mode_label=f"论文库×{len(lib.papers)}",
-                     retriever=lib, papers_dir=papers_dir)
+                     retriever=lib, papers_dir=papers_dir,
+                     agent_builder=builder, model=model)
         return
 
     pdf_paths = [a for a in args if not a.startswith("--")]
@@ -315,14 +345,20 @@ async def main():
 
     if len(pdf_paths) == 1:
         retriever = load_single_paper(pdf_paths[0])
-        agent = build_agent(retriever)
-        await launch(agent, mode_label="单论文")
+        model = get_chat_model()
+        builder = lambda m=None: build_agent(retriever, m)
+        agent = builder(model)
+        await launch(agent, mode_label="单论文",
+                     agent_builder=builder, model=model)
     else:
         print(f"\n检测到 {len(pdf_paths)} 篇论文，进入多论文对比模式。")
         retriever = load_multi_papers(pdf_paths)
-        agent = build_multi_agent(retriever)
+        model = get_chat_model()
+        builder = lambda m=None: build_multi_agent(retriever, m)
+        agent = builder(model)
         await launch(agent, mode_label=f"多论文×{len(pdf_paths)}",
-                     retriever=retriever, papers_dir="papers")
+                     retriever=retriever, papers_dir="papers",
+                     agent_builder=builder, model=model)
 
 
 if __name__ == "__main__":

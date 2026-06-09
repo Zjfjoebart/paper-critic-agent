@@ -2,10 +2,10 @@
 
 审稿式论文阅读助手。不是 PDF 总结器，而是帮你做研究判断的工具。
 
-当前版本 **v0.7**：支持单论文 / 多论文对比 / 本地论文库，能生成 Literature Matrix、
+当前版本 **v0.8**：支持单论文 / 多论文对比 / 本地论文库，能生成 Literature Matrix、
 推荐研究切入点，并可从 arXiv 直接检索下载论文。
 
-默认进入 **Claude Code 风格的终端界面**：斜杠命令自动补全（Tab）、带边框输入框、命令历史（↑↓）、Markdown 渲染回答、思考动画与流式输出。加 `--plain` 可切回简易界面。
+默认进入 **Claude Code 风格的终端界面**：斜杠命令自动补全（Tab）、带边框输入框、命令历史（↑↓）、Markdown 渲染回答、思考动画与流式输出、**多轮对话记忆**（支持追问）、**`/model` 随时切换推理模型**。加 `--plain` 可切回简易界面。
 
 ---
 
@@ -80,7 +80,7 @@ python app.py --find "token pruning vision language model"
 - `和 SparseVLM 相比有什么区别？`
 - `如果我要在这个方向继续做，有哪些可攻击点？`
 
-交互中可用命令：`find <关键词>`（联网搜索 + 研究图景图）、`viz`（重出图景图）、`matrix`（对比表 + 指标对比图）、`/papers`（方向键追加论文）、`cache`、`help`、`exit`。
+交互中可用命令：`find <关键词>`（联网搜索 + 研究图景图）、`viz`（重出图景图）、`matrix`（对比表 + 指标对比图）、`/papers`（方向键追加论文）、`/model`（切换 deepseek-chat / deepseek-reasoner）、`/clear`（清空对话记忆）、`cache`、`help`、`exit`。
 
 ---
 

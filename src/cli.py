@@ -3,22 +3,20 @@ cli.py
 Claude Code 风格的终端界面。
 
 特性：
-- 启动 banner（项目名 + 当前模式 + 提示）
-- 斜杠命令自动补全：/help /find /viz /matrix /papers /clear /exit + 模板 1-7
-- 带边框、可历史回溯（↑↓）的输入框（prompt_toolkit）
-- 回答用 Markdown 渲染（rich），思考时显示转圈动画
-- 优先流式输出（逐字打印），不支持时自动回退
+- 启动 banner + 底部状态栏（模式 / 论文数 / 当前模型）
+- 斜杠命令自动补全：/help /find /viz /matrix /papers /model /clear /cache /exit + 模板 1-7
+- 带边框、可历史回溯（↑↓）的输入框
+- 多轮对话记忆（追问可接上文）；/clear 清空记忆
+- /model 方向键切换推理模型，热重建 agent（不丢历史）
+- 回答 Markdown 渲染，思考转圈动画，优先流式输出（不支持自动回退）
 
-依赖 rich + prompt_toolkit。任一不可用或非交互终端时，app.py 会回退到简易版。
+依赖 rich + prompt_toolkit。任一不可用或非交互终端时，app.py 回退到简易版。
 """
-
-import asyncio
 
 from rich.console import Console
 from rich.panel import Panel
 from rich.markdown import Markdown
 from rich.live import Live
-from rich.text import Text
 from rich.spinner import Spinner
 
 from prompt_toolkit import PromptSession
@@ -27,9 +25,10 @@ from prompt_toolkit.history import InMemoryHistory
 from prompt_toolkit.styles import Style
 from prompt_toolkit.formatted_text import HTML
 
-from src.agent import ask_agent, ask_agent_stream, build_multi_agent
+from src.agent import ask_agent, ask_agent_stream
 from src.commands import do_find, do_viz, do_matrix
 from src.cache import list_cache
+from src.config import get_chat_model, AVAILABLE_MODELS
 from src.prompts import TEMPLATES
 
 console = Console()
@@ -40,25 +39,26 @@ SLASH = {
     "/viz": "重新生成研究图景图",
     "/matrix": "生成对比矩阵 + 指标图",
     "/papers": "方向键多选追加论文",
+    "/model": "切换推理模型",
+    "/clear": "清空对话记忆 + 清屏",
     "/cache": "查看缓存",
-    "/clear": "清屏",
     "/exit": "退出",
 }
 
 BANNER = """[bold #2E6DA4]Paper Critic Agent[/]  ·  审稿式论文阅读助手
 
-输入问题直接提问，或用 [bold]/[/] 唤出命令（Tab 补全）。
-模板 [bold]1-7[/] 一键调用 · [bold]/find[/] 联网搜论文 · [bold]/matrix[/] 对比表 · [bold]/papers[/] 加论文 · [bold]/exit[/] 退出"""
+输入问题直接提问（支持追问，会记住上下文），或用 [bold]/[/] 唤出命令（Tab 补全）。
+模板 [bold]1-7[/] · [bold]/find[/] 搜论文 · [bold]/matrix[/] 对比表 · [bold]/model[/] 换模型 · [bold]/clear[/] 清空记忆 · [bold]/exit[/] 退出"""
 
 
 def _completer() -> WordCompleter:
-    words = list(SLASH.keys()) + [str(i) for i in range(1, 8)] + ["find ", "viz", "matrix", "exit"]
+    words = list(SLASH.keys()) + [str(i) for i in range(1, 8)] + ["find ", "viz", "matrix", "model", "exit"]
     return WordCompleter(words, ignore_case=True, sentence=True)
 
 
-def _toolbar(mode_label: str, retriever):
+def _toolbar(mode_label: str, retriever, model: str):
     n = len(retriever.papers) if (retriever is not None and hasattr(retriever, "papers")) else 1
-    return HTML(f" <b>模式</b> {mode_label}  ·  <b>论文</b> {n} 篇  ·  Tab 补全命令  ·  Ctrl-C 退出")
+    return HTML(f" <b>模式</b> {mode_label}  ·  <b>论文</b> {n} 篇  ·  <b>模型</b> {model}  ·  Tab 补全 · Ctrl-C 退出")
 
 
 def _print_help():
@@ -68,33 +68,33 @@ def _print_help():
                         title="命令", border_style="#2E6DA4", expand=False))
 
 
-async def _answer(agent, question: str):
-    """优先流式渲染；失败回退非流式 + Markdown。"""
+async def _answer(agent, question: str, history: list) -> list:
+    """优先流式渲染；失败回退非流式。返回更新后的 history。"""
     try:
         buf = {"t": ""}
         with Live(console=console, refresh_per_second=12, vertical_overflow="visible") as live:
             live.update(Spinner("dots", text=" 分析中…", style="#2E6DA4"))
-            first = {"got": False}
 
             def on_delta(d: str):
-                if not first["got"]:
-                    first["got"] = True
                 buf["t"] += d
                 live.update(Markdown(buf["t"]))
 
-            full = await ask_agent_stream(agent, question, on_delta)
-            if not buf["t"]:                      # 没有流出任何增量
+            full, new_history = await ask_agent_stream(agent, question, on_delta, history)
+            if not buf["t"]:
                 live.update(Markdown(full or "（无内容）"))
-        return
+        return new_history
     except Exception:
-        pass  # 回退
+        pass  # 回退非流式
 
     with console.status(" 分析中…", spinner="dots", spinner_style="#2E6DA4"):
-        answer = await ask_agent(agent, question)
+        answer, new_history = await ask_agent(agent, question, history)
     console.print(Markdown(answer))
+    return new_history
 
 
-async def run_cli(agent, mode_label: str, retriever=None, papers_dir: str = "papers"):
+async def run_cli(agent, mode_label: str, retriever=None, papers_dir: str = "papers",
+                  agent_builder=None, model: str | None = None):
+    model = model or get_chat_model()
     console.print(Panel(BANNER, border_style="#2E6DA4", expand=False))
 
     session = PromptSession(
@@ -105,13 +105,14 @@ async def run_cli(agent, mode_label: str, retriever=None, papers_dir: str = "pap
     )
 
     state: dict = {"last_results": None, "last_query": ""}
+    history: list = []
     supports_multi = retriever is not None and hasattr(retriever, "add_paper")
 
     while True:
         try:
             user_input = (await session.prompt_async(
                 HTML("<prompt>❯ </prompt>"),
-                bottom_toolbar=lambda: _toolbar(mode_label, retriever),
+                bottom_toolbar=lambda: _toolbar(mode_label, retriever, model),
             )).strip()
         except (EOFError, KeyboardInterrupt):
             console.print("[dim]再见。[/]")
@@ -129,8 +130,10 @@ async def run_cli(agent, mode_label: str, retriever=None, papers_dir: str = "pap
             _print_help()
             continue
         if cmd == "clear":
+            history = []
             console.clear()
             console.print(Panel(BANNER, border_style="#2E6DA4", expand=False))
+            console.print("[green]对话记忆已清空。[/]")
             continue
         if cmd == "cache":
             entries = list_cache()
@@ -141,9 +144,25 @@ async def run_cli(agent, mode_label: str, retriever=None, papers_dir: str = "pap
                     console.print(f"  {e['name']}  ({e['size_kb']:.0f} KB)")
             continue
 
+        # 切换模型
+        if cmd == "model":
+            if agent_builder is None:
+                console.print("[dim]当前模式不支持切换模型。[/]")
+                continue
+            from src.selector import pick_model_async
+            chosen = await pick_model_async(model, AVAILABLE_MODELS)
+            if not chosen or chosen == model:
+                console.print("[dim]模型未变。[/]")
+                continue
+            model = chosen
+            agent = agent_builder(model)
+            console.print(f"[green]已切换模型：{model}[/]  [dim]（对话记忆保留）[/]")
+            continue
+
         # /find <关键词>
         if cmd.startswith("find"):
-            query = user_input.split(None, 1)[1].strip() if len(user_input.split(None, 1)) > 1 else ""
+            parts = user_input.split(None, 1)
+            query = parts[1].strip() if len(parts) > 1 else ""
             if not query:
                 console.print("[dim]用法：/find <主题关键词>[/]")
                 continue
@@ -154,7 +173,7 @@ async def run_cli(agent, mode_label: str, retriever=None, papers_dir: str = "pap
             do_viz(state, echo=console.print)
             continue
 
-        if cmd in ("papers",):
+        if cmd == "papers":
             if not supports_multi:
                 console.print("[dim]/papers 仅在多论文 / 论文库模式可用。[/]")
                 continue
@@ -168,7 +187,8 @@ async def run_cli(agent, mode_label: str, retriever=None, papers_dir: str = "pap
             for p in new_paths:
                 retriever.add_paper(p)
             console.print(retriever.paper_list_str())
-            agent = build_multi_agent(retriever)
+            if agent_builder is not None:
+                agent = agent_builder(model)
             console.print("[green]已更新：新论文已加入当前会话。[/]")
             continue
 
@@ -189,4 +209,4 @@ async def run_cli(agent, mode_label: str, retriever=None, papers_dir: str = "pap
         else:
             question = user_input
 
-        await _answer(agent, question)
+        history = await _answer(agent, question, history)

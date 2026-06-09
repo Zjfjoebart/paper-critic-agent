@@ -28,3 +28,21 @@ def model_tag(model_name: str) -> str:
     # 取模型名最后一段，去掉非字母数字
     base = model_name.split("/")[-1]
     return "".join(ch for ch in base if ch.isalnum() or ch in "-_")[:32]
+
+
+# ====================================================================== #
+#  推理模型（DeepSeek）配置
+# ====================================================================== #
+
+DEFAULT_CHAT_MODEL = "deepseek-chat"
+
+# /model 命令可选的模型（同一 DeepSeek 接口下）
+AVAILABLE_MODELS = [
+    "deepseek-chat",      # 快、便宜，日常分析
+    "deepseek-reasoner",  # 推理更强、更慢更贵，适合审稿人挑战 / 研究切入点
+]
+
+
+def get_chat_model() -> str:
+    """当前推理模型（环境变量 DEEPSEEK_MODEL 优先）。"""
+    return os.environ.get("DEEPSEEK_MODEL", DEFAULT_CHAT_MODEL).strip()

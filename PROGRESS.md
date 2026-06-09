@@ -10,7 +10,7 @@
 
 ---
 
-## 当前版本：v0.7
+## 当前版本：v0.8
 
 ### 模块总览
 
@@ -121,6 +121,19 @@
   - **流式输出**（`ask_agent_stream`，逐 token 打印）；SDK 不支持时自动回退非流式。
 - **`src/commands.py`**：把 find/viz/matrix 逻辑抽成共享模块，富 CLI 与简易版共用。
 - **回退策略**：`--plain` 或非交互终端 / 未装 rich 时，自动用原简易版界面。
+
+---
+
+## 本轮（→ v0.8）新增：多轮记忆 + /model 切换模型
+
+- **多轮对话记忆**：`ask_agent` / `ask_agent_stream` 改为接收并返回 `history`
+  （用 Agents SDK 的 `to_input_list()` 串接），追问能接上文。`/clear` 清空记忆。
+  - 之前每次提问都是独立的（不记得上一轮），现在会话内保持上下文。
+- **/model 切换推理模型**：`build_agent` / `build_multi_agent` 增加 `model` 参数。
+  - 富 CLI：`/model` 方向键选 deepseek-chat / deepseek-reasoner / 自定义，热重建 agent，**切换不丢历史**。
+  - 简易版：输入 `model` 回车后填名称。底部状态栏实时显示当前模型。
+  - 默认模型可用环境变量 `DEEPSEEK_MODEL` 配置（见 `src/config.py`）。
+- **实现方式**：main() 用 `agent_builder` 闭包贯通，`/model` 与 `/papers` 都通过它热重建 agent。
 
 ---
 

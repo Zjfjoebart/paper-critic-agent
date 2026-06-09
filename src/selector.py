@@ -102,3 +102,33 @@ def pick_papers(
     except Exception as e:
         print(f"[提示] 交互选择不可用（{e}），回退编号模式。")
         return _fallback_pick(pdfs)
+
+
+async def pick_model_async(current: str, options: list[str]) -> str | None:
+    """
+    方向键选择推理模型，返回选中的模型名（取消返回 None）。
+    末尾附"自定义…"，可手填任意 OpenAI 兼容模型名。
+    """
+    CUSTOM = "自定义…"
+    if not sys.stdin.isatty():
+        print(f"当前模型：{current}。可选：{', '.join(options)}")
+        raw = input("输入要切换的模型名（回车保持不变）：").strip()
+        return raw or None
+    try:
+        import questionary
+        choice = await questionary.select(
+            f"选择推理模型（当前：{current}）：",
+            choices=options + [CUSTOM],
+        ).ask_async()
+        if choice is None:
+            return None
+        if choice == CUSTOM:
+            custom = await questionary.text("输入模型名：").ask_async()
+            return (custom or "").strip() or None
+        return choice
+    except ImportError:
+        raw = input(f"当前 {current}，输入要切换的模型名：").strip()
+        return raw or None
+    except Exception as e:
+        print(f"[提示] 选择不可用（{e}）。")
+        return None

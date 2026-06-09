@@ -13,6 +13,7 @@ from agents import Agent, Runner, function_tool, set_default_openai_client, set_
 from src.retriever import PaperRetriever
 from src.multi_retriever import MultiPaperRetriever
 from src.prompts import SYSTEM_PROMPT, MULTI_PAPER_SYSTEM_PROMPT
+from src.config import get_chat_model
 from src.paper_finder import find_papers, format_results as format_found
 
 
@@ -31,9 +32,10 @@ def _setup_deepseek():
 #  单论文 Agent
 # ====================================================================== #
 
-def build_agent(retriever: PaperRetriever) -> Agent:
+def build_agent(retriever: PaperRetriever, model: str | None = None) -> Agent:
     """单论文模式 Agent。"""
     _setup_deepseek()
+    model = model or get_chat_model()
 
     @function_tool
     def search_paper(query: str) -> str:
@@ -80,7 +82,7 @@ def build_agent(retriever: PaperRetriever) -> Agent:
 
     return Agent(
         name="Paper Critic Agent",
-        model="deepseek-chat",
+        model=model,
         instructions=SYSTEM_PROMPT,
         tools=[search_paper, keyword_search, find_related_papers],
     )
@@ -90,12 +92,13 @@ def build_agent(retriever: PaperRetriever) -> Agent:
 #  多论文 Agent
 # ====================================================================== #
 
-def build_multi_agent(retriever: MultiPaperRetriever) -> Agent:
+def build_multi_agent(retriever: MultiPaperRetriever, model: str | None = None) -> Agent:
     """
     多论文模式 Agent。
     多出 search_one_paper、compare_papers 两个工具。
     """
     _setup_deepseek()
+    model = model or get_chat_model()
 
     paper_list = retriever.paper_list_str()
 
@@ -199,7 +202,7 @@ def build_multi_agent(retriever: MultiPaperRetriever) -> Agent:
 
     return Agent(
         name="Multi-Paper Critic Agent",
-        model="deepseek-chat",
+        model=model,
         instructions=system,
         tools=[search_all_papers, search_one_paper, compare_papers, recommend_directions, keyword_search, find_related_papers],
     )
@@ -209,20 +212,30 @@ def build_multi_agent(retriever: MultiPaperRetriever) -> Agent:
 #  通用入口
 # ====================================================================== #
 
-async def ask_agent(agent: Agent, question: str) -> str:
-    """向 Agent 提问，返回最终回答。"""
-    result = await Runner.run(agent, question)
-    return result.final_output
-
-
-async def ask_agent_stream(agent: Agent, question: str, on_delta) -> str:
+async def ask_agent(agent: Agent, question: str, history: list | None = None):
     """
-    流式提问：每个文本增量调用 on_delta(text)，返回完整回答。
+    向 Agent 提问，带多轮对话记忆。
+    Args:
+        history: 之前轮次的消息列表（首轮传 None）
+    Returns:
+        (answer, new_history)  new_history 可作为下一轮的 history 传入。
+    """
+    input_list = (history or []) + [{"role": "user", "content": question}]
+    result = await Runner.run(agent, input_list)
+    return result.final_output, result.to_input_list()
+
+
+async def ask_agent_stream(agent: Agent, question: str, on_delta, history: list | None = None):
+    """
+    流式提问（带多轮记忆）：每个文本增量调用 on_delta(text)。
+    Returns:
+        (full_text, new_history)
     若底层 SDK 不支持流式，调用方应捕获异常并回退到 ask_agent。
     """
     from openai.types.responses import ResponseTextDeltaEvent
 
-    result = Runner.run_streamed(agent, question)
+    input_list = (history or []) + [{"role": "user", "content": question}]
+    result = Runner.run_streamed(agent, input_list)
     pieces: list[str] = []
     async for event in result.stream_events():
         if event.type == "raw_response_event" and isinstance(event.data, ResponseTextDeltaEvent):
@@ -230,4 +243,5 @@ async def ask_agent_stream(agent: Agent, question: str, on_delta) -> str:
             if delta:
                 pieces.append(delta)
                 on_delta(delta)
-    return "".join(pieces) or (result.final_output or "")
+    text = "".join(pieces) or (result.final_output or "")
+    return text, result.to_input_list()
