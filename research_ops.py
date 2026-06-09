@@ -22,6 +22,25 @@ DEFAULT_WS = os.environ.get("RESEARCHOPS_WORKSPACE", "workspace")
 from agent.pipeline import run_status
 
 
+def _check_ready(workspace: str, grid: str | None) -> bool:
+    """检查工作目录与 grid.yaml 是否就绪；不就绪时给出友好引导。"""
+    ws = Path(workspace)
+    if not ws.is_dir():
+        print(f"[提示] 工作目录不存在：{workspace}")
+        print("  · 先体验示例： lab examples/vision_token_compression")
+        return False
+    grid_path = grid or str(ws / "grid.yaml")
+    if not Path(grid_path).exists():
+        print(f"[提示] “{workspace}” 里还没有 grid.yaml（实验矩阵定义），暂时没东西可看。\n")
+        print("  两种用法：")
+        print("  1) 先体验示例数据：   lab examples/vision_token_compression")
+        print("  2) 接入你自己的实验： 在该目录放 grid.yaml + configs/ logs/ results/")
+        print("                        （命名规则和 grid 示例见 README / examples/）")
+        print("\n  小贴士：把常用实验目录写进 .env 的 RESEARCHOPS_WORKSPACE，以后 lab 直接打开它。")
+        return False
+    return True
+
+
 def _print_status(res: dict):
     c = res["counts"]
     print("\n" + "=" * 60)
@@ -50,18 +69,16 @@ def _print_status(res: dict):
 
 
 def cmd_status(args):
+    if not _check_ready(args.workspace, args.grid):
+        return
     ws = args.workspace
-    if not Path(ws).is_dir():
-        print(f"[错误] workspace 不存在：{ws}")
-        sys.exit(1)
     res = run_status(ws, grid_path=args.grid, out_dir=args.out, project=getattr(args, "project", "") or "")
     _print_status(res)
 
 
 def cmd_chat(args):
-    if not Path(args.workspace).is_dir():
-        print(f"[错误] workspace 不存在：{args.workspace}")
-        sys.exit(1)
+    if not _check_ready(args.workspace, args.grid):
+        return
     try:
         import asyncio
         from agent.cli import run_chat
